@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Entry Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .form-container, .entries-container {
+            margin-bottom: 40px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .button {
+            padding: 8px 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>News Entry Dashboard</h1>
+
+    <!-- Form to Add a New News Entry -->
+    <div class="form-container">
+        <h2>Add a New News Entry</h2>
+        <form id="news-entry-form">
+            <label for="name">Name:</label><br>
+            <input type="text" id="name" name="name" required><br><br>
+
+            <label for="url">URL:</label><br>
+            <input type="url" id="url" name="url" required><br><br>
+
+            <label for="news_count">News Count:</label><br>
+            <input type="number" id="news_count" name="news_count" required><br><br>
+
+            <label for="auto_dialer">Auto Dialer:</label><br>
+            <input type="checkbox" id="auto_dialer" name="auto_dialer"><br><br>
+
+            <label for="author">Author (Optional):</label><br>
+            <input type="text" id="author" name="author"><br><br>
+
+            <label for="categories">Categories (Optional):</label><br>
+            <input type="text" id="categories" name="categories" placeholder="Comma separated"><br><br>
+
+            <label for="tags">Tags (Optional):</label><br>
+            <input type="text" id="tags" name="tags" placeholder="Comma separated"><br><br>
+
+            <label for="delay">Delay (Optional):</label><br>
+            <input type="number" id="delay" name="delay"><br><br>
+
+            <label for="delay_unit">Delay Unit (Optional):</label><br>
+            <input type="text" id="delay_unit" name="delay_unit"><br><br>
+
+            <button type="submit" class="button">Submit</button>
+        </form>
+    </div>
+
+    <!-- Section to Display All News Entries -->
+    <div class="entries-container">
+        <h2>All News Entries</h2>
+        <table id="entries-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>URL</th>
+                    <th>News Count</th>
+                    <th>Auto Dialer</th>
+                    <th>Author</th>
+                    <th>Categories</th>
+                    <th>Tags</th>
+                    <th>Delay</th>
+                    <th>Delay Unit</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Entries will be populated here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.getElementById('news-entry-form').addEventListener('submit', async function (event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            const formData = new FormData(this); // Extract form data
+            const data = {
+                name: formData.get('name'),
+                url: formData.get('url'),
+                news_count: parseInt(formData.get('news_count'), 10),
+                auto_dialer: formData.get('auto_dialer') === 'on', // Convert checkbox to boolean
+                author: formData.get('author') || null,
+                categories: formData.get('categories') ? formData.get('categories').split(',') : null,
+                tags: formData.get('tags') ? formData.get('tags').split(',') : null,
+                delay: formData.get('delay') ? parseInt(formData.get('delay'), 10) : null,
+                delay_unit: formData.get('delay_unit') || null,
+            };
+
+            // Send a POST request with the form data
+            const response = await fetch('http://127.0.0.1:8000/news_entry/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data) // Send the form data as JSON in the request body
+            });
+
+            if (response.ok) {
+                alert('Entry created successfully!');
+                fetchEntries(); // Refresh the entries list
+                this.reset(); // Reset the form
+            } else {
+                alert('Error creating entry.');
+                console.error(await response.json()); // Log the detailed error response
+            }
+        });
+
+        async function fetchEntries() {
+    const response = await fetch('http://127.0.0.1:8000/news_entries/');
+    const entries = await response.json();
+
+    const table = document.getElementById('entries-table');
+    table.innerHTML = ''; // Clear existing entries
+
+    entries.forEach(entry => {
+        // Convert categories and tags to arrays if they are strings
+        const categories = Array.isArray(entry.categories) ? entry.categories : (entry.categories ? entry.categories.split(',') : []);
+        const tags = Array.isArray(entry.tags) ? entry.tags : (entry.tags ? entry.tags.split(',') : []);
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${entry.name}</td>
+            <td>${entry.url}</td>
+            <td>${entry.news_count}</td>
+            <td>${entry.auto_dialer}</td>
+            <td>${entry.author || ''}</td>
+            <td>${categories.join(', ')}</td>
+            <td>${tags.join(', ')}</td>
+            <td>${entry.delay || ''}</td>
+            <td>${entry.delay_unit || ''}</td>
+            <td><button onclick="runEntry(${entry.id})">Run</button></td>
+        `;
+        table.appendChild(row);
+    });
+}
+
+
+        function runEntry(id) {
+            alert(`Running entry with ID: ${id}`);
+            // Implement your run logic here
+        }
+
+        // Fetch and display entries on page load
+        fetchEntries();
+    </script>
+
+
+</body>
+</html>
