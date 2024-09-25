@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from utils import fetch_rss, clear_sched_feed
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(clear_sched_feed,'cron', hour = 0, minute = 0)
 
 # Dictionary to track tasks
 #dict of dict
