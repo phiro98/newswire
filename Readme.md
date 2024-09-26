@@ -2,8 +2,8 @@
 # FastAPI Newswire Application
 
 This is a FastAPI-based application that manages and schedules news entries. You can run this application using either the shell or Docker.
-## Requirements- Python 3.11+- FastAPI- Uvicorn- Docker (if running with Docker)## 
-Running Locally with Shell
+## Requirements- Python 3.11+- FastAPI- Uvicorn- Docker (if running with Docker)
+## Running Locally with Shell
 
 To run this FastAPI application locally on your machine, follow these steps:
 ### 1. Clone the repository
