@@ -50,7 +50,7 @@ To check if the container is running, use the following command:
 ```bash
 docker ps
 ```
-API Endpoints
+## API Endpoints
 ### 1. Create a News Entry
 - URL: /news_entry/
 - Method: POST
