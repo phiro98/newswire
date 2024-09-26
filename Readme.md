@@ -65,7 +65,8 @@ docker ps
   "author": "Author Name",
   "categories": ["Category1", "Category2"],
   "tags": ["Tag1", "Tag2"],
-  "delay": 5}
+  "delay": 5
+}
 ```
 ### 2. Schedule a Task
 - URL: /schedule_task/{id}
