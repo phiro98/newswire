@@ -56,7 +56,8 @@ docker ps
 - Method: POST
 - Description: Create a new news entry.
 - Request Body:json
-```json{
+```json
+{
   "name": "Example News",
   "url": "https://example.com/news",
   "news_count": 10,
