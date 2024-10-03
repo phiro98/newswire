@@ -114,7 +114,7 @@ def fetch_feed(news_id: int, db: SessionLocal = Depends(get_db)):
 def fetch_feed(db: SessionLocal = Depends(get_db)):
     try:
         news_data = db.query(NewsEntry).all()
-        newslist = [news.url for news in news_data]
+        newslist = [news for news in news_data]
         return {"data":newslist}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
