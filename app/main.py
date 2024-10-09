@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.middleware.cors import CORSMiddleware
 from scheduler import scheduler, create_task
 import os
-from utils import fetch_rss, SCHED_FEED
+from utils import fetch_rss, SCHED_FEED, log_request_response
 
 
 # Database setup
@@ -78,6 +78,7 @@ scheduler.start()
 
 # Route to add rssfeed
 @app.post("/news_entry")
+@log_request_response
 def create_news_entry(news_entry: NewsEntrySchema, db: SessionLocal = Depends(get_db)):
     # Create the news entry
     try:
@@ -101,6 +102,7 @@ def create_news_entry(news_entry: NewsEntrySchema, db: SessionLocal = Depends(ge
 
 
 @app.get("/fetch_feed/{news_id}")
+@log_request_response
 def fetch_feed(news_id: int, db: SessionLocal = Depends(get_db)):
     try:
         task = db.query(NewsEntry).filter(NewsEntry.id == news_id).first()
@@ -111,6 +113,7 @@ def fetch_feed(news_id: int, db: SessionLocal = Depends(get_db)):
 
 
 @app.get("/fetch_all_entry/")
+@log_request_response
 def fetch_feed(db: SessionLocal = Depends(get_db)):
     try:
         news_data = db.query(NewsEntry).all()
@@ -121,6 +124,7 @@ def fetch_feed(db: SessionLocal = Depends(get_db)):
 
 # Route to schedule a task by task id
 @app.post("/schedule_task/{task_id}")
+@log_request_response
 def schedule_task(task_id: int, db: SessionLocal = Depends(get_db)):
     # Query the task from the database
     task = db.query(NewsEntry).filter(NewsEntry.id == task_id).first()
@@ -140,6 +144,7 @@ def schedule_task(task_id: int, db: SessionLocal = Depends(get_db)):
     return {"message": "Task scheduled successfully", "task_id": task_id}
 
 @app.get("/tasks")
+@log_request_response
 def get_tasks():
     try:
         jobs = scheduler.get_jobs()
@@ -153,6 +158,7 @@ if not os.path.exists("data"):
     os.makedirs("data")
 
 @app.get("/job-result")
+@log_request_response
 def get_job_result():
     global SCHED_FEED
     try:    

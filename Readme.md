@@ -13,7 +13,8 @@ cd app
 ```
 ### 2. Set up a Virtual Environment (optional but recommended)
 ```bash
-python3 -m venv venvsource venv/bin/activate
+python3 -m venv newsenv
+source newsenv/bin/activate
 ```
 ### 3. Install dependencies
 Make sure to install all required dependencies from requirements.txt:

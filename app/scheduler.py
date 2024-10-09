@@ -11,10 +11,10 @@ tasks = {}
 # Method to create a new scheduled task
 def create_task(url, delay_hours, news_count):
     task_id = f"task_{len(tasks) + 1}"
-    next_run_time = datetime.now() + timedelta(minutes=delay_hours)
+    next_run_time = datetime.now() + timedelta(hours=delay_hours)
 
     # Schedule the XML fetching job
-    job = scheduler.add_job(fetch_rss, 'interval', minutes=delay_hours, args=[url,news_count,task_id], id=task_id, next_run_time=next_run_time)
+    job = scheduler.add_job(fetch_rss, 'interval', hours=delay_hours, args=[url,news_count,task_id], id=task_id, next_run_time=next_run_time)
     tasks[task_id] = {
         'url': url,
         'delay_hours': delay_hours,
