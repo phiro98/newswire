@@ -168,10 +168,10 @@ async def update_news_entry(news_id: int, update_data: NewsEntryUpdate, db: Sess
 
 
 @app.delete("/news_entry/{news_id}")
-def delete_news_entry(news_entry_id: int, db: Session = Depends(get_db)):
+def delete_news_entry(news_id: int, db: Session = Depends(get_db)):
     try:
         # Fetch the existing news entry
-        news_entry = db.query(NewsEntry).filter(NewsEntry.id == news_entry_id).first()
+        news_entry = db.query(NewsEntry).filter(NewsEntry.id == news_id).first()
         if not news_entry:
             raise HTTPException(status_code=404, detail="News entry not found")
         
@@ -179,6 +179,6 @@ def delete_news_entry(news_entry_id: int, db: Session = Depends(get_db)):
         db.delete(news_entry)
         db.commit()
 
-        return {"message": f"News entry with id {news_entry_id} has been deleted successfully."}
+        return {"message": f"News entry with id {news_id} has been deleted successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
