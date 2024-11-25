@@ -79,9 +79,9 @@ def fetch_feed(db: SessionLocal = Depends(get_db)):
 # Route to schedule a task by task id
 @app.post("/schedule_task/{task_id}")
 @log_request_response
-def schedule_task(task_id: int, db: SessionLocal = Depends(get_db)):
+def schedule_task(news_id: int, db: SessionLocal = Depends(get_db)):
     # Query the task from the database
-    task = db.query(NewsEntry).filter(NewsEntry.id == task_id).first()
+    task = db.query(NewsEntry).filter(NewsEntry.id == news_id).first()
 
     # Check if task exists
     if not task:
@@ -167,7 +167,7 @@ async def update_news_entry(news_id: int, update_data: NewsEntryUpdate, db: Sess
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
-@app.delete("/news_entry/{news_entry_id}")
+@app.delete("/news_entry/{news_id}")
 def delete_news_entry(news_entry_id: int, db: Session = Depends(get_db)):
     try:
         # Fetch the existing news entry
