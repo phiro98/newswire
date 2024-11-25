@@ -1,54 +1,16 @@
 from fastapi import FastAPI, HTTPException, Depends 
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from fastapi.middleware.cors import CORSMiddleware
 from scheduler import scheduler, create_task
+from sqlalchemy.orm import Session
 import os
-from utils import fetch_rss, SCHED_FEED, log_request_response
-
-
-# Database setup
-DATABASE_URL = "sqlite:///./news.db"
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-# SQLAlchemy model for news_entry
-class NewsEntry(Base):
-    __tablename__ = "news_entry"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    url = Column(String)
-    news_count = Column(Integer, default=2)
-    auto_dialer = Column(Boolean)
-    author = Column(String, nullable=True)
-    categories = Column(String, nullable=True)
-    tags = Column(String, nullable=True)
-    delay = Column(Integer, nullable=True, default=1)
-
-
-# Create the database tables
-Base.metadata.create_all(bind=engine)
-
-# Pydantic schema for request validation
-class NewsEntrySchema(BaseModel):
-    name: str = Field(..., example="Example News")
-    url: str = Field(..., example="https://example.com/news")
-    news_count: int = Field(..., example=10)
-    auto_dialer: bool = Field(..., example=True)
-    
-    # Optional fields
-    author: Optional[str] = Field(None, example="Author Name")
-    categories: Optional[List[str]] = Field(None, example=["Category1", "Category2"])
-    tags: Optional[List[str]] = Field(None, example=["Tag1", "Tag2"])
-    delay: Optional[int] = Field(None, example=5)
-
-    class Config:
-        from_attributes = True
+from utils import fetch_rss, SCHED_FEED, log_request_response, clear_sched_feed, logger
+from schemas.news_request import NewsEntrySchema, NewsEntryUpdate
+from sqlalchemy import create_engine
+from database import SessionLocal, get_db
+from models.news_enrty import NewsEntry
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy.ext.declarative import declarative_base
 
 
 app = FastAPI()
@@ -62,14 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 
@@ -106,7 +60,7 @@ def create_news_entry(news_entry: NewsEntrySchema, db: SessionLocal = Depends(ge
 def fetch_feed(news_id: int, db: SessionLocal = Depends(get_db)):
     try:
         task = db.query(NewsEntry).filter(NewsEntry.id == news_id).first()
-        feeds = fetch_rss(task.url,task.news_count)
+        feeds = fetch_rss(task)
         return {"data":feeds}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
@@ -137,7 +91,7 @@ def schedule_task(task_id: int, db: SessionLocal = Depends(get_db)):
     # Run the create_task method (assuming it schedules a task)
     try:
         if task.auto_dialer:
-            task_id = create_task(task.url, task.delay, task.news_count)
+            task_id = create_task(task)   #task.url, task.delay, task.news_count)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
@@ -168,4 +122,63 @@ def get_job_result():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
+@app.delete("/delete-data")
+@log_request_response
+def delete_data_list():
+    global SCHED_FEED
+    try:    
+        if SCHED_FEED:
+            clear_sched_feed()
+        else: 
+            return {"data": "list is empty"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+# Route to update rssfeed
+@app.put("/news_entry/{news_id}")
+@log_request_response
+async def update_news_entry(news_id: int, update_data: NewsEntryUpdate, db: Session = Depends(get_db)):
+    try:
+        # Retrieve the existing NewsEntry record
+        news_entry = db.query(NewsEntry).filter(NewsEntry.id == news_id).first()
+        if not news_entry:
+            raise HTTPException(status_code=404, detail="News entry not found")
+
+        # Update only the fields that are provided
+        update_dict = update_data.dict(exclude_unset=True)
+        for key, value in update_dict.items():
+            if key == "categories":
+                # Convert list to a comma-separated string if applicable
+                logger.info(f"value: {value} {','.join(value)}")
+                setattr(news_entry, key, ",".join(value) if value else None)
+            elif key == "tags":
+                # Convert list to a comma-separated string if applicable
+                setattr(news_entry, key, ",".join(value) if value else None)
+            else:
+                setattr(news_entry, key, value)
+
+        # Save changes
+        db.add(news_entry)
+        db.commit()
+        db.refresh(news_entry)
+
+        return news_entry
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.delete("/news_entry/{news_entry_id}")
+def delete_news_entry(news_entry_id: int, db: Session = Depends(get_db)):
+    try:
+        # Fetch the existing news entry
+        news_entry = db.query(NewsEntry).filter(NewsEntry.id == news_entry_id).first()
+        if not news_entry:
+            raise HTTPException(status_code=404, detail="News entry not found")
+        
+        # Delete the news entry
+        db.delete(news_entry)
+        db.commit()
+
+        return {"message": f"News entry with id {news_entry_id} has been deleted successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

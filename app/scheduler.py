@@ -9,16 +9,16 @@ scheduler = BackgroundScheduler()
 tasks = {}
 
 # Method to create a new scheduled task
-def create_task(url, delay_hours, news_count):
+def create_task(task: str):
     task_id = f"task_{len(tasks) + 1}"
-    next_run_time = datetime.now() + timedelta(hours=delay_hours)
+    next_run_time = datetime.now() + timedelta(hours=task.delay)
 
     # Schedule the XML fetching job
-    job = scheduler.add_job(fetch_rss, 'interval', hours=delay_hours, args=[url,news_count,task_id], id=task_id, next_run_time=next_run_time)
+    job = scheduler.add_job(fetch_rss, 'interval', hours=task.delay, args=[task,task_id], id=task_id, next_run_time=next_run_time)
     tasks[task_id] = {
-        'url': url,
-        'delay_hours': delay_hours,
-        'news_count': news_count,
+        'url': task.url,
+        'delay_hours': task.delay,
+        'news_count': task.news_count,
         'next_run': next_run_time
     }
 

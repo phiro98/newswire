@@ -9,61 +9,10 @@ from fastapi import Request
 from functools import wraps
 import os
 import asyncio
-
+from schemas.news_response import NewsResponse
+from schemas.news_request import NewsEntrySchema
 #global variable for storing schedular data
 SCHED_FEED = []
-# Fetch XML, convert to JSON, and save to file
-def fetch_rss(url,news_count,task_id = 0):
-    try:
-        data = requests.get(url)
-
-        if data.status_code == 200:
-            newsSoup = BeautifulSoup(data.content,'xml')
-            entries = newsSoup.find_all('item')
-            entries = entries[:news_count]
-            # List to hold all news items
-            news_items = []
-            for entry in entries:
-                title = entry.title.text
-                pub_date = entry.pubDate.text
-                guid = entry.guid.text
-                link = entry.link.text
-                description = entry.description.text
-                creator = entry.find('dc:creator').text if entry.find('dc:creator') else "No creator"
-                category = entry.category.text if entry.find('category') else "No category"
-                if entry.find('media:thumbnail'):
-                    media = entry.find('media:thumbnail')['url']  
-                elif entry.find('enclosure'):
-                    media = entry.find('enclosure')['url']  
-                else: "No thumbnail"
-                # Append the data as a dictionary
-                news_items.append({
-                    "title": title,
-                    "link": link,
-                    "published_date": pub_date,
-                    "creator": creator,
-                    "category": category,
-                    "description": description,
-                    "guid": guid,
-                    "media": media
-                })
-                
-            # Return the list of news items as a JSON object
-            if task_id:
-                print(len(SCHED_FEED))
-                SCHED_FEED.append(news_items)
-            else:
-                return json.dumps(news_items, indent=4)
-    except:
-        # Return error message if request failed
-        return json.dumps({"error": "Failed to fetch RSS feed", "status_code": data.status_code}, indent=4)    
-
-def clear_sched_feed():
-    global SCHED_FEED
-    SCHED_FEED.clear()
-    print("list cleared")
-fetch_rss("http://rss.cnn.com/rss/money_news_international.rss",13)
-# fetch_and_save_xml("https://news.abplive.com/india/feed",5)
 
 # Ensure `logs` directory exists
 if not os.path.exists("logs"):
@@ -106,3 +55,62 @@ def log_request_response(func):
             raise e
 
     return wrapper
+
+# Fetch XML, convert to JSON, and save to file
+def fetch_rss(news_entry: NewsEntrySchema, task_id = 0):
+    global SCHED_FEED
+    try:
+        logger.info(f"news_entry.url-->{news_entry.url}")
+        data = requests.get(news_entry.url)
+
+        if data.status_code == 200:
+            newsSoup = BeautifulSoup(data.content,'xml')
+            entries = newsSoup.find_all('item')
+            entries = entries[:news_entry.news_count]
+            # List to hold all news items
+            news_items = []
+            for entry in entries:
+                logger.info(f"entry-->> {entry}")
+
+                title = entry.title.text
+                pub_date = entry.pubDate.text
+                guid = entry.guid.text
+                link = entry.link.text
+                description = entry.description.text
+                creator = entry.find('dc:creator').text if entry.find('dc:creator') else "No creator"
+                category = entry.category.text if entry.find('category') else "No category"
+                if entry.find('media:thumbnail'):
+                    media = entry.find('media:thumbnail')['url']  
+                elif entry.find('enclosure'):
+                    media = entry.find('enclosure')['url']  
+                else: "No thumbnail"
+                # Append the data as a dictionary
+                news_items.append({
+                    "title": title,
+                    "link": link,
+                    "published_date": pub_date,
+                    "creator": creator,
+                    "category": category,
+                    "description": description,
+                    "guid": guid,
+                    "media": media
+                })
+            fetched_data = NewsResponse(name=news_entry.name, categories=news_entry.categories.split(","), tags=news_entry.tags.split(","), news=news_items)
+        logger.info(f"fetched_data::::{fetched_data}")
+        # NewsResponse(name=news_entry.name, catagories=news_entry.categories, tags=news_entry.tags, news=news_items)
+        
+        SCHED_FEED.append(fetched_data)
+        logger.info("array--->>>>>>",len(SCHED_FEED))
+        if not task_id:
+            return fetched_data            # Return the list of news items as a JSON object
+    except:
+        # Return error message if request failed
+        # return json.dumps({"error": "Failed to fetch RSS feed", "status_code": data.status_code}, indent=4) 
+        return json.dumps({"error": "Failed to fetch RSS feed", "status_code":400}, indent=4)    
+
+def clear_sched_feed():
+    global SCHED_FEED
+    SCHED_FEED.clear()
+    logger.info("list cleared")
+# fetch_rss("http://rss.cnn.com/rss/money_news_international.rss",13)
+# fetch_and_save_xml("https://news.abplive.com/india/feed",5)
