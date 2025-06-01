@@ -9,7 +9,7 @@ from fastapi import Request
 from functools import wraps
 import os
 import asyncio
-from schemas.news_response import NewsResponse
+from schemas.news_response import NewsItem, NewsResponse
 from schemas.news_request import NewsEntrySchema
 #global variable for storing schedular data
 SCHED_FEED = []
@@ -74,28 +74,34 @@ def fetch_rss(news_entry: NewsEntrySchema, task_id = 0):
 
                 title = entry.title.text
                 pub_date = entry.pubDate.text
-                guid = entry.guid.text
+                guide = entry.guid.text
                 link = entry.link.text
                 description = entry.description.text
-                creator = entry.find('dc:creator').text if entry.find('dc:creator') else "No creator"
-                category = entry.category.text if entry.find('category') else "No category"
+                creator = entry.find('dc:creator').text if entry.find('dc:creator') else None
+                category = entry.category.text if entry.find('category') else None
                 if entry.find('media:thumbnail'):
                     media = entry.find('media:thumbnail')['url']  
                 elif entry.find('enclosure'):
                     media = entry.find('enclosure')['url']  
-                else: "No thumbnail"
+                else: media = None
                 # Append the data as a dictionary
-                news_items.append({
-                    "title": title,
-                    "link": link,
-                    "published_date": pub_date,
-                    "creator": creator,
-                    "category": category,
-                    "description": description,
-                    "guid": guid,
-                    "media": media
-                })
-            fetched_data = NewsResponse(name=news_entry.name, categories=news_entry.categories.split(","), tags=news_entry.tags.split(","), news=news_items)
+                news_items.append(NewsItem(
+                    title=title,
+                    link=link,
+                    published_date=pub_date,
+                    creator=creator,
+                    category=category,
+                    description=description,
+                    guid=guide,
+                    media=media
+                ))
+            logger.info(f"cat:::{type(news_entry.categories)}")
+            fetched_data = NewsResponse(
+                name=news_entry.name, 
+                categories=news_entry.categories, 
+                tags=news_entry.tags, 
+                news=news_items
+            )
         logger.info(f"fetched_data::::{fetched_data}")
         # NewsResponse(name=news_entry.name, catagories=news_entry.categories, tags=news_entry.tags, news=news_items)
         
@@ -103,8 +109,8 @@ def fetch_rss(news_entry: NewsEntrySchema, task_id = 0):
         logger.info("array--->>>>>>",len(SCHED_FEED))
         if not task_id:
             return fetched_data            # Return the list of news items as a JSON object
-    except:
-        # Return error message if request failed
+    except Exception as e:
+        logger.error(f"fetch_rss_err:: {e}")# Return error message if request failed
         # return json.dumps({"error": "Failed to fetch RSS feed", "status_code": data.status_code}, indent=4) 
         return json.dumps({"error": "Failed to fetch RSS feed", "status_code":400}, indent=4)    
 

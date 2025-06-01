@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
-from database import engine
+# from database import engine
 Base = declarative_base()
 
 class NewsEntry(Base):
@@ -12,8 +12,8 @@ class NewsEntry(Base):
     news_count = Column(Integer, default=2)
     auto_dialer = Column(Boolean)
     author = Column(String, nullable=True)
-    categories = Column(String, nullable=True)
-    tags = Column(String, nullable=True)
+    categories = Column(Text, nullable=True)  # Will store as JSON string
+    tags = Column(Text, nullable=True)  # Will store as JSON string
     delay = Column(Integer, nullable=True, default=1)
 
 # Create the database tables

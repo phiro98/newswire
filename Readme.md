@@ -15,6 +15,8 @@ cd app
 ```bash
 python3 -m venv newsenv
 source newsenv/bin/activate
+export FIREBASE_KEY="/mnt/c/Users/CN/Desktop/newswire/firebase_key.json"
+export PROJECT_ID=newswire-2cd3b
 ```
 ### 3. Install dependencies
 Make sure to install all required dependencies from requirements.txt:
@@ -28,6 +30,7 @@ Once dependencies are installed, you can run the FastAPI app using Uvicorn:
 
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
 ```
 This will start the FastAPI app at http://localhost:8000.
 ## Running with Docker
