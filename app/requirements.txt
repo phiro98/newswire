@@ -6,3 +6,8 @@ bs4
 lxml
 xmltodict
 sqlalchemy
+scikit-learn
+spacy
+pandas
+matplotlib
+seaborn

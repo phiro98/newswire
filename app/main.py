@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends 
+from ml_route import compare_and_cluster_articles
 from sqlalchemy.orm import sessionmaker
 from fastapi.middleware.cors import CORSMiddleware
 from scheduler import scheduler, create_task
@@ -182,3 +183,8 @@ def delete_news_entry(news_id: int, db: Session = Depends(get_db)):
         return {"message": f"News entry with id {news_id} has been deleted successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.post("/compare-cluster")
+async def compare_cluster_endpoint():
+    return await compare_and_cluster_articles()
