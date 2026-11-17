@@ -18,12 +18,13 @@ from app.models import NewsSource, Article, ArticleComplianceFlag, FetchLog, Com
 from app.schemas import (
     SourceCreate, SourceUpdate, SourceResponse,
     ArticleSummaryResponse, ArticleDetailResponse,
+    CategoryCount, CategoryCountsResponse,
     ComplianceRuleCreate, ComplianceRuleResponse,
     TriggerFetchRequest, TriggerFetchResponse,
     SystemStatusResponse, SystemMetricsResponse
 )
 from app.ingestion import ingestion_agent
-from app.analyzer import analyzer_agent, DEFAULT_COMPLIANCE_TAXONOMY
+from app.analyzer import analyzer_agent, DEFAULT_COMPLIANCE_TAXONOMY, VALID_CATEGORIES
 from app.scheduler import (
     start_scheduler, stop_scheduler, get_scheduler_status,
     execute_pipeline_for_source, run_scheduled_polling_cycle
@@ -61,8 +62,29 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     pass
             analyzer_agent.compliance_engine.update_taxonomy(active_tax)
+
+        # Backfill categories for existing articles if needed
+        articles_to_classify = db.query(Article).all()
+        reclassified = 0
+        for art in articles_to_classify:
+            source_cat = art.source.category if art.source else None
+            # If default or not in valid categories, reclassify
+            if not art.category or art.category == "Business & Finance" or art.category not in VALID_CATEGORIES:
+                new_cat = analyzer_agent.category_classifier.classify(
+                    title=art.title or "",
+                    text=art.content or art.summary or "",
+                    source_category=source_cat,
+                    is_compliance_flagged=art.is_compliance_flagged,
+                    compliance_risk_score=art.compliance_risk_score
+                )
+                if art.category != new_cat:
+                    art.category = new_cat
+                    reclassified += 1
+        if reclassified > 0:
+            db.commit()
+            logger.info(f"Backfilled {reclassified} articles with exact category classification.")
     except Exception as e:
-        logger.warning(f"Could not load custom rules on startup: {e}")
+        logger.warning(f"Startup rules/category migration notice: {e}")
     finally:
         db.close()
 
@@ -359,8 +381,31 @@ def trigger_fetch(
 # ARTICLE QUERY & FILTERING ENDPOINTS
 # ============================================================================
 
+@app.get("/api/v1/categories", response_model=CategoryCountsResponse, tags=["Articles"])
+@app.get("/api/categories", response_model=CategoryCountsResponse, include_in_schema=False)
+def get_category_counts(db: Session = Depends(get_db)):
+    """Returns total article counts and distribution across all 7 supported news categories."""
+    total_articles = db.query(Article).count()
+    rows = (
+        db.query(Article.category, func.count(Article.id).label("count"))
+        .group_by(Article.category)
+        .all()
+    )
+    counts_map = {row[0]: row[1] for row in rows if row[0]}
+    category_list = [
+        CategoryCount(name=cat, count=counts_map.get(cat, 0))
+        for cat in VALID_CATEGORIES
+    ]
+    return CategoryCountsResponse(
+        total_articles=total_articles,
+        categories=category_list
+    )
+
+
 @app.get("/api/v1/articles", response_model=List[ArticleSummaryResponse], tags=["Articles"])
+@app.get("/api/articles", response_model=List[ArticleSummaryResponse], include_in_schema=False)
 def query_articles(
+    category: Optional[str] = Query(None, description="Filter by category (e.g. Business & Finance, Beauty, Sports)"),
     sentiment: Optional[str] = Query(None, description="Filter by sentiment: positive, neutral, negative"),
     is_flagged: Optional[bool] = Query(None, description="Filter only compliance flagged articles"),
     topic: Optional[str] = Query(None, description="Filter by compliance topic/category or keyword"),
@@ -375,6 +420,7 @@ def query_articles(
 ):
     """
     Queries processed articles with comprehensive multi-criteria filtering:
+    - Primary Category (Business, Technology, Beauty, Entertainment, Sports, etc.)
     - Sentiment ('positive', 'neutral', 'negative')
     - Compliance status (flagged vs clean)
     - Specific compliance categories (AML, Bribery, Fraud, Cyber, etc.)
@@ -382,6 +428,9 @@ def query_articles(
     - Text search across title and extracted body
     """
     query = db.query(Article)
+
+    if category and category.strip().lower() not in ["", "all", "all topics"]:
+        query = query.filter(Article.category == category.strip())
 
     if sentiment:
         query = query.filter(Article.sentiment_label == sentiment.lower())
@@ -428,6 +477,7 @@ def query_articles(
             title=a.title,
             url=a.url,
             canonical_url=a.canonical_url,
+            category=a.category or "Business & Finance",
             author=a.author,
             publish_date=a.publish_date,
             summary=a.summary,
@@ -471,6 +521,7 @@ def get_article_detail(article_id: int, db: Session = Depends(get_db)):
         title=article.title,
         url=article.url,
         canonical_url=article.canonical_url,
+        category=article.category or "Business & Finance",
         author=article.author,
         publish_date=article.publish_date,
         content=article.content,

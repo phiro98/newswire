@@ -64,11 +64,15 @@ def execute_pipeline_for_source(source_id: int, limit: int = 25) -> Dict[str, An
                     url=item["url"],
                     fallback_title=item.get("title"),
                     fallback_date=item.get("publish_date"),
-                    fallback_author=item.get("author")
+                    fallback_author=item.get("author"),
+                    fallback_summary=item.get("snippet")
                 )
                 stats["scraped"] += 1
 
-                # 3. Intelligence Processing (Sentiment & Compliance)
+                # Pass source classification context
+                scraped["source_category"] = item.get("source_category") or source.category
+
+                # 3. Intelligence Processing (Sentiment, Compliance, & Category)
                 analyzed = analyzer_agent.process_article(scraped)
 
                 # 4. Database Persistence
@@ -78,10 +82,11 @@ def execute_pipeline_for_source(source_id: int, limit: int = 25) -> Dict[str, An
                     url=item["url"],
                     canonical_url=item["canonical_url"],
                     url_hash=item["url_hash"],
+                    category=analyzed.get("category", "Business & Finance"),
                     author=analyzed["authors"][0] if analyzed.get("authors") else None,
                     publish_date=analyzed.get("publish_date") or item.get("publish_date"),
                     content=analyzed["text"],
-                    summary=analyzed["summary"],
+                    summary=analyzed.get("summary") or item.get("snippet") or "Extractive NLP summary pending.",
                     top_image=analyzed["top_image"],
                     keywords=json.dumps(analyzed.get("keywords", [])),
                     sentiment_label=analyzed["sentiment_label"],

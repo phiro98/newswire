@@ -257,24 +257,150 @@ class ComplianceEngine:
         }
 
 
+VALID_CATEGORIES = [
+    "Business & Finance",
+    "Technology & AI",
+    "Compliance & Sanctions",
+    "World & Geopolitics",
+    "Beauty",
+    "Entertainment",
+    "Sports"
+]
+
+CATEGORY_KEYWORDS = {
+    "Beauty": [
+        "skincare", "makeup", "cosmetics", "haircare", "fragrance", "perfume", 
+        "lipstick", "serum", "moisturizer", "eyeshadow", "mascara", "dermatolog",
+        "beauty routine", "manicure", "haircut", "sunscreen", "spf", "cleanser",
+        "anti-aging", "aesthetician", "botox", "foundation", "concealer", "blush",
+        "nail polish", "beauty brand", "hair styling", "wellness"
+    ],
+    "Entertainment": [
+        "film", "movie", "tv", "television", "music", "celebrity", "actor", "actress",
+        "hollywood", "album", "box office", "emmy", "oscar", "grammy", "concert",
+        "cinema", "trailer", "streaming", "broadway", "pop star", "rapper", "director",
+        "billboard", "netflix", "showrunner", "golden globe", "comic-con", "casting"
+    ],
+    "Sports": [
+        "football", "soccer", "basketball", "nba", "nfl", "premier league", 
+        "champions league", "tennis", "cricket", "golf", "olympics", "formula 1",
+        "f1", "baseball", "mlb", "hockey", "nhl", "athlete", "tournament", "match",
+        "score", "quarterback", "striker", "touchdown", "grand slam", "fifa", "championship"
+    ],
+    "Technology & AI": [
+        "artificial intelligence", "ai", "machine learning", "llm", "gpt", "software",
+        "hardware", "cyber", "semiconductor", "chip", "algorithm", "gadget", "smartphone",
+        "apple", "google", "microsoft", "nvidia", "cloud", "crypto", "quantum computing",
+        "robotics", "open ai", "deep learning", "silicon", "gpu", "app development"
+    ],
+    "World & Geopolitics": [
+        "diplomacy", "treaty", "election", "parliament", "president", "prime minister",
+        "united nations", "nato", "geopolitic", "foreign minister", "summit", "embassy",
+        "border conflict", "ceasefire", "missile", "sovereignty", "white house", "kremlin",
+        "middle east", "ukraine", "taiwan", "state department"
+    ],
+    "Business & Finance": [
+        "market", "stock", "economy", "inflation", "gdp", "interest rate", "central bank",
+        "federal reserve", "revenue", "earnings", "wall street", "banking", "merger",
+        "acquisition", "shares", "nasdaq", "dow jones", "investor", "dividend", "venture capital",
+        "private equity", "quarterly profit", "treasury", "bonds"
+    ]
+}
+
+
+class CategoryClassifier:
+    """
+    Classifies articles into exactly one of the 7 core categories:
+    Business & Finance, Technology & AI, Compliance & Sanctions,
+    World & Geopolitics, Beauty, Entertainment, Sports.
+    """
+
+    def __init__(self):
+        self._compiled = {
+            cat: [re.compile(r'\b' + re.escape(kw) + r'\b', re.I) for kw in kws]
+            for cat, kws in CATEGORY_KEYWORDS.items()
+        }
+
+    def classify(
+        self, 
+        title: str, 
+        text: str, 
+        source_category: Optional[str] = None, 
+        is_compliance_flagged: bool = False,
+        compliance_risk_score: float = 0.0
+    ) -> str:
+        # 1. High-risk compliance overrides generic categories
+        if is_compliance_flagged and compliance_risk_score >= 25.0:
+            return "Compliance & Sanctions"
+
+        # Baseline source category mapping
+        mapped_source_cat = None
+        if source_category:
+            s_lower = source_category.lower()
+            if "beauty" in s_lower:
+                mapped_source_cat = "Beauty"
+            elif "entertain" in s_lower or "arts" in s_lower:
+                mapped_source_cat = "Entertainment"
+            elif "sport" in s_lower:
+                mapped_source_cat = "Sports"
+            elif "tech" in s_lower or "ai" in s_lower or "cyber" in s_lower:
+                mapped_source_cat = "Technology & AI"
+            elif "compliance" in s_lower or "enforce" in s_lower or "sanction" in s_lower or "regulat" in s_lower:
+                mapped_source_cat = "Compliance & Sanctions"
+            elif "world" in s_lower or "politic" in s_lower or "geopolitic" in s_lower:
+                mapped_source_cat = "World & Geopolitics"
+            elif "business" in s_lower or "financ" in s_lower or "market" in s_lower or "econom" in s_lower:
+                mapped_source_cat = "Business & Finance"
+
+        scores = {cat: 0 for cat in VALID_CATEGORIES}
+
+        # Source category bonus
+        if mapped_source_cat and mapped_source_cat in scores:
+            scores[mapped_source_cat] += 4
+
+        # Match keywords in title (weight 3) and body (weight 1)
+        title_text = title.lower()
+        body_text = text[:3000].lower() if text else ""
+
+        for cat, patterns in self._compiled.items():
+            for p in patterns:
+                if p.search(title_text):
+                    scores[cat] += 3
+                elif p.search(body_text):
+                    scores[cat] += 1
+
+        # Check compliance keyword presence
+        if is_compliance_flagged:
+            scores["Compliance & Sanctions"] += 3
+
+        # Resolve top category
+        best_cat = max(scores.items(), key=lambda x: x[1])
+        if best_cat[1] > 0:
+            return best_cat[0]
+
+        return mapped_source_cat or "Business & Finance"
+
+
 class IntelligenceLayer:
     """
-    Modular processing pipeline wrapper combining sentiment analysis
-    and compliance scanning into a unified agent workflow.
+    Modular processing pipeline wrapper combining sentiment analysis,
+    compliance scanning, and exact category classification.
     """
 
     def __init__(self):
         self.sentiment_engine = SentimentEngine()
         self.compliance_engine = ComplianceEngine()
+        self.category_classifier = CategoryClassifier()
 
     def process_article(self, article_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Applies intelligence models to an extracted article dictionary.
-        Returns the article data enriched with sentiment and compliance risk metrics.
+        Returns the article data enriched with sentiment, compliance, and category tags.
         """
         title = article_data.get("title", "")
         summary = article_data.get("summary", "")
         body = article_data.get("text", "")
+        source_category = article_data.get("source_category")
 
         # Composite text for analysis
         combined_text = f"{title}\n\n{summary}\n\n{body}"
@@ -285,7 +411,17 @@ class IntelligenceLayer:
         # 2. Compliance Flagging
         compliance = self.compliance_engine.inspect_compliance(text=body or summary, title=title)
 
+        # 3. Exact Category Classification
+        category = self.category_classifier.classify(
+            title=title,
+            text=body or summary,
+            source_category=source_category,
+            is_compliance_flagged=compliance["is_flagged"],
+            compliance_risk_score=compliance["risk_score"]
+        )
+
         # Merge results into article payload
+        article_data["category"] = category
         article_data["sentiment_label"] = sentiment["label"]
         article_data["sentiment_score"] = sentiment["score"]
         article_data["sentiment_breakdown"] = sentiment["breakdown"]

@@ -145,23 +145,51 @@ class IngestionModule:
                 else:
                     pub_date = datetime.utcnow()
 
-                # Extract title and summary
+                # Extract title, publisher, and summary
                 title = getattr(entry, "title", "Untitled Article")
-                summary = getattr(entry, "summary", "") or getattr(entry, "description", "")
+                raw_summary = getattr(entry, "summary", "") or getattr(entry, "description", "")
                 author = getattr(entry, "author", None)
 
-                # Clean HTML out of summary if needed
-                if summary and "<" in summary:
-                    summary = BeautifulSoup(summary, "html.parser").get_text(strip=True)
+                # Extract source publisher (especially useful for Google News and aggregated feeds)
+                publisher = None
+                if hasattr(entry, "source"):
+                    if isinstance(entry.source, dict):
+                        publisher = entry.source.get("title") or entry.source.get("value")
+                    elif hasattr(entry.source, "title"):
+                        publisher = entry.source.title
+
+                # Clean Google News titles formatted as "Article Headline - Publisher Name"
+                clean_title = title.strip()
+                if " - " in clean_title:
+                    parts = clean_title.rsplit(" - ", 1)
+                    if len(parts) == 2 and len(parts[1]) < 60:
+                        clean_title = parts[0].strip()
+                        if not publisher:
+                            publisher = parts[1].strip()
+
+                if not author and publisher:
+                    author = publisher
+
+                # Clean HTML tags and decode entities out of summary
+                clean_summary = ""
+                if raw_summary:
+                    if "<" in raw_summary:
+                        clean_summary = BeautifulSoup(raw_summary, "html.parser").get_text(separator=" ", strip=True)
+                    else:
+                        clean_summary = raw_summary.strip()
+
+                # If summary is empty or too short, generate an informative fallback
+                if not clean_summary or len(clean_summary) < 25:
+                    clean_summary = f"{clean_title}. Published by {author or 'Newswire Source'}."
 
                 articles.append({
-                    "title": title.strip(),
+                    "title": clean_title,
                     "url": link,
                     "canonical_url": canonical,
                     "url_hash": url_hash,
                     "publish_date": pub_date,
-                    "author": author,
-                    "snippet": summary[:500] if summary else "",
+                    "author": author or publisher,
+                    "snippet": clean_summary[:800],
                     "source_type": "rss"
                 })
 
@@ -330,6 +358,8 @@ def ingest_and_deduplicate(db: Session, source: NewsSource, limit: int = 25) -> 
     duplicates_count = 0
 
     for item in discovered_items:
+        item["source_category"] = source.category
+        item["source_name"] = source.name
         if is_article_duplicate(db, item["canonical_url"], item["url_hash"]):
             duplicates_count += 1
             logger.debug(f"Skipping duplicate article: {item['canonical_url']}")

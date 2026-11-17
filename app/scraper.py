@@ -65,7 +65,8 @@ class ScrapingAgent:
         url: str, 
         fallback_title: Optional[str] = None,
         fallback_date: Optional[datetime] = None,
-        fallback_author: Optional[str] = None
+        fallback_author: Optional[str] = None,
+        fallback_summary: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Downloads target article URL, cleans away noise, and extracts core content and NLP artifacts.
@@ -74,8 +75,8 @@ class ScrapingAgent:
         result: Dict[str, Any] = {
             "url": url,
             "title": fallback_title or "Untitled Article",
-            "text": "",
-            "summary": "",
+            "text": fallback_summary or "",
+            "summary": fallback_summary or "",
             "authors": [fallback_author] if fallback_author else [],
             "publish_date": fallback_date or datetime.utcnow(),
             "top_image": None,
@@ -123,7 +124,8 @@ class ScrapingAgent:
             result=result,
             fallback_title=fallback_title,
             fallback_date=fallback_date,
-            fallback_author=fallback_author
+            fallback_author=fallback_author,
+            fallback_summary=fallback_summary
         )
 
     def _scrape_fallback(
@@ -132,7 +134,8 @@ class ScrapingAgent:
         result: Dict[str, Any],
         fallback_title: Optional[str] = None,
         fallback_date: Optional[datetime] = None,
-        fallback_author: Optional[str] = None
+        fallback_author: Optional[str] = None,
+        fallback_summary: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Graceful fallback parser when newspaper4k is blocked by anti-bot headers or returns empty.
@@ -165,25 +168,26 @@ class ScrapingAgent:
             cleaned_text = "\n\n".join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 25])
 
             if len(cleaned_text) < 50:
-                # Last resort: extract all text
-                cleaned_text = soup.get_text(separator="\n", strip=True)
+                cleaned_text = fallback_summary or soup.get_text(separator="\n", strip=True)
 
-            result["text"] = cleaned_text
+            result["text"] = cleaned_text or (fallback_summary or fallback_title or "")
             result["publish_date"] = fallback_date or datetime.utcnow()
             result["authors"] = [fallback_author] if fallback_author else []
 
             # Generate NLP summary and keywords from fallback text
-            summary, keywords = self._fallback_nlp(cleaned_text)
-            result["summary"] = summary
+            summary, keywords = self._fallback_nlp(result["text"])
+            result["summary"] = summary or fallback_summary or result["text"][:300]
             result["keywords"] = keywords
             result["status"] = "FALLBACK_SUCCESS" if len(cleaned_text) > 100 else "PARTIAL"
 
         except Exception as e:
-            logger.error(f"Fallback scraper also failed for {url}: {str(e)}")
-            result["status"] = "FAILED"
+            logger.info(f"Fallback scraper engaged snippet mode for {url}: {str(e)}")
+            result["status"] = "FALLBACK_SNIPPET"
             result["error_message"] = str(e)
-            result["text"] = result.get("text") or (fallback_title or "")
-            result["summary"] = result["text"][:300]
+            result["text"] = fallback_summary or (fallback_title or "")
+            summary, keywords = self._fallback_nlp(result["text"])
+            result["summary"] = summary or fallback_summary or result["text"][:300]
+            result["keywords"] = keywords
 
         return result
 

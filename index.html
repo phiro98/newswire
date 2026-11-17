@@ -36,47 +36,53 @@
         </div>
     </header>
 
-    <!-- KPI Summary Grid -->
-    <div class="kpi-row">
-        <div class="kpi-card">
-            <div class="kpi-label">Ingested Articles</div>
-            <div class="kpi-num" id="kpi-total-articles">-</div>
-            <div class="kpi-meta">Deduplicated in PostgreSQL/SQLite</div>
-        </div>
-        <div class="kpi-card alert-card">
-            <div class="kpi-label">Compliance Risk Alerts</div>
-            <div class="kpi-num" id="kpi-flagged-alerts" style="color: #f87171;">-</div>
-            <div class="kpi-meta">AML, Sanctions, Bribery, Fraud</div>
-        </div>
-        <div class="kpi-card source-card">
-            <div class="kpi-label">Active News Feeds</div>
-            <div class="kpi-num" id="kpi-active-sources">-</div>
-            <div class="kpi-meta">Automated polling active</div>
-        </div>
-        <div class="kpi-card sentiment-card">
-            <div class="kpi-label">Sentiment Polarity (Pos / Neu / Neg)</div>
-            <div class="kpi-num" id="kpi-sentiment-summary" style="font-size: 22px;">-</div>
-            <div class="kpi-meta">VADER NLP compound scoring</div>
+    <!-- News Category Selector Bar (News-First Placement) -->
+    <div class="category-bar-wrapper">
+        <div class="category-bar" id="category-selector">
+            <button class="category-pill active" data-category="" onclick="selectCategory('', this)">
+                <span class="pill-dot dot-all"></span>
+                <span>All Topics</span>
+                <span class="category-count" id="count-all">0</span>
+            </button>
+            <button class="category-pill" data-category="Business & Finance" onclick="selectCategory('Business & Finance', this)">
+                <span class="pill-dot dot-business"></span>
+                <span>Business & Finance</span>
+                <span class="category-count" id="count-business">0</span>
+            </button>
+            <button class="category-pill" data-category="Technology & AI" onclick="selectCategory('Technology & AI', this)">
+                <span class="pill-dot dot-tech"></span>
+                <span>Technology & AI</span>
+                <span class="category-count" id="count-tech">0</span>
+            </button>
+            <button class="category-pill" data-category="Compliance & Sanctions" onclick="selectCategory('Compliance & Sanctions', this)">
+                <span class="pill-dot dot-compliance"></span>
+                <span>Compliance & Sanctions</span>
+                <span class="category-count" id="count-compliance">0</span>
+            </button>
+            <button class="category-pill" data-category="World & Geopolitics" onclick="selectCategory('World & Geopolitics', this)">
+                <span class="pill-dot dot-world"></span>
+                <span>World & Geopolitics</span>
+                <span class="category-count" id="count-world">0</span>
+            </button>
+            <button class="category-pill" data-category="Beauty" onclick="selectCategory('Beauty', this)">
+                <span class="pill-dot dot-beauty"></span>
+                <span>Beauty</span>
+                <span class="category-count" id="count-beauty">0</span>
+            </button>
+            <button class="category-pill" data-category="Entertainment" onclick="selectCategory('Entertainment', this)">
+                <span class="pill-dot dot-entertainment"></span>
+                <span>Entertainment</span>
+                <span class="category-count" id="count-entertainment">0</span>
+            </button>
+            <button class="category-pill" data-category="Sports" onclick="selectCategory('Sports', this)">
+                <span class="pill-dot dot-sports"></span>
+                <span>Sports</span>
+                <span class="category-count" id="count-sports">0</span>
+            </button>
         </div>
     </div>
 
-    <!-- Real-Time Analytics Charts -->
-    <div class="charts-grid">
-        <div class="chart-card">
-            <h3>Sentiment Polarity Distribution</h3>
-            <div class="chart-wrapper">
-                <canvas id="sentimentChart"></canvas>
-            </div>
-        </div>
-        <div class="chart-card">
-            <h3>Top Regulatory & Compliance Violations</h3>
-            <div class="chart-wrapper">
-                <canvas id="complianceChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filter & Navigation Toolbar -->
+    <!-- Filter & Navigation Toolbar (Immediately below Category Bar) -->
     <div class="filter-bar">
         <div class="view-tabs">
             <button class="tab-btn active" onclick="switchTab('articles', this)">Live Articles Feed</button>
@@ -111,10 +117,13 @@
         </div>
     </div>
 
-    <!-- Main Panel Container -->
+    <!-- Main Live Articles & Content Panel -->
     <div class="panel">
         <div class="panel-header">
-            <h2 id="view-title">Real-Time Ingestion & Compliance Intelligence</h2>
+            <div class="panel-header-left">
+                <h2 id="view-title">Real-Time Categorized News & Intelligence Feed</h2>
+                <span class="active-category-indicator" id="active-category-display">All Topics</span>
+            </div>
             <span style="font-size: 12px; color: var(--text-muted);" id="items-count">Loading records...</span>
         </div>
 
@@ -123,10 +132,10 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width: 45%;">Article Headline & Extractive Summary</th>
-                        <th style="width: 15%;">Publisher & Date</th>
-                        <th style="width: 15%;">Sentiment Polarity</th>
-                        <th style="width: 25%;">Compliance Risk Assessment</th>
+                        <th style="width: 44%;">Article Headline & Extractive Summary</th>
+                        <th style="width: 16%;">Publisher & Date</th>
+                        <th style="width: 14%;">Sentiment Polarity</th>
+                        <th style="width: 26%;">Compliance Risk Assessment</th>
                     </tr>
                 </thead>
                 <tbody id="articles-tbody">
@@ -183,6 +192,57 @@
             </table>
         </div>
     </div>
+
+    <!-- Analytics & Compliance Telemetry Section (Lower Page Section) -->
+    <section class="telemetry-section" id="telemetry-section">
+        <div class="telemetry-header">
+            <div>
+                <h2>Analytics & Compliance Telemetry</h2>
+                <p>Global portfolio metrics, NLP sentiment distribution, and regulatory risk violation trends</p>
+            </div>
+            <span class="telemetry-badge">TELEMETRY ENGINE ACTIVE</span>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-label">Ingested Articles</div>
+                <div class="kpi-num" id="kpi-total-articles">-</div>
+                <div class="kpi-meta">Deduplicated in PostgreSQL/SQLite</div>
+            </div>
+            <div class="kpi-card alert-card">
+                <div class="kpi-label">Compliance Risk Alerts</div>
+                <div class="kpi-num" id="kpi-flagged-alerts" style="color: #f87171;">-</div>
+                <div class="kpi-meta">AML, Sanctions, Bribery, Fraud</div>
+            </div>
+            <div class="kpi-card source-card">
+                <div class="kpi-label">Active News Feeds</div>
+                <div class="kpi-num" id="kpi-active-sources">-</div>
+                <div class="kpi-meta">Automated polling active</div>
+            </div>
+            <div class="kpi-card sentiment-card">
+                <div class="kpi-label">Sentiment Polarity (Pos / Neu / Neg)</div>
+                <div class="kpi-num" id="kpi-sentiment-summary" style="font-size: 22px;">-</div>
+                <div class="kpi-meta">VADER NLP compound scoring</div>
+            </div>
+        </div>
+
+        <!-- Real-Time Analytics Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Sentiment Polarity Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="sentimentChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>Top Regulatory & Compliance Violations</h3>
+                <div class="chart-wrapper">
+                    <canvas id="complianceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 
 <!-- Modal: Add News Source -->
@@ -192,16 +252,19 @@
             <h3>Add Subscribed News Feed</h3>
             <button class="close-btn" onclick="closeModal('modal-add-source')">✕</button>
         </div>
-        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 12px; color: #93c5fd;">
+        <div class="modal-presets">
             <strong>Quick Presets:</strong>
-            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 6px;" onclick="applyPreset('Reuters Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 'Business & Markets')">BBC Business</button>
-            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="applyPreset('SEC Press Releases', 'https://www.sec.gov/news/pressreleases.rss', 'Regulatory & Enforcement')">SEC Press</button>
-            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="applyPreset('Google News - Sanctions', 'https://news.google.com/rss/search?q=sanctions+OR+anti-money+laundering+OR+bribery&hl=en-US&gl=US&ceid=US:en', 'Compliance')">GNews Compliance</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('BBC Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 'Business & Finance')">BBC Business</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('Ars Technica', 'https://feeds.arstechnica.com/arstechnica/index', 'Technology & AI')">Tech & AI</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('Allure Beauty', 'https://www.allure.com/feed/rss', 'Beauty')">Allure Beauty</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('Variety News', 'https://variety.com/feed/', 'Entertainment')">Variety</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('BBC Sport', 'https://feeds.bbci.co.uk/sport/rss.xml', 'Sports')">BBC Sport</button>
+            <button type="button" class="btn btn-secondary preset-btn" onclick="applyPreset('SEC Press Releases', 'https://www.sec.gov/news/pressreleases.rss', 'Compliance & Sanctions')">SEC Press</button>
         </div>
         <form id="form-add-source" onsubmit="handleAddSource(event)">
             <div class="form-field">
                 <label>Feed Display Name</label>
-                <input type="text" id="src-name" required placeholder="e.g. Financial Times Compliance">
+                <input type="text" id="src-name" required placeholder="e.g. Variety Entertainment">
             </div>
             <div class="form-field">
                 <label>Feed or Website URL (Supports Auto-Discovery)</label>
@@ -217,7 +280,15 @@
             </div>
             <div class="form-field">
                 <label>Taxonomy Category</label>
-                <input type="text" id="src-category" value="Regulatory & Legal" required>
+                <select id="src-category">
+                    <option value="Business & Finance">Business & Finance</option>
+                    <option value="Technology & AI">Technology & AI</option>
+                    <option value="Compliance & Sanctions">Compliance & Sanctions</option>
+                    <option value="World & Geopolitics">World & Geopolitics</option>
+                    <option value="Beauty">Beauty</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Sports">Sports</option>
+                </select>
             </div>
             <div class="form-field">
                 <label>Polling Interval (Minutes)</label>

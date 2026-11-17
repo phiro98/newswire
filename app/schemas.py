@@ -54,6 +54,7 @@ class ArticleSummaryResponse(BaseModel):
     title: str
     url: str
     canonical_url: str
+    category: str = "Business & Finance"
     author: Optional[str] = None
     publish_date: Optional[datetime] = None
     summary: Optional[str] = None
@@ -68,6 +69,16 @@ class ArticleSummaryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CategoryCount(BaseModel):
+    name: str
+    count: int
+
+
+class CategoryCountsResponse(BaseModel):
+    total_articles: int
+    categories: List[CategoryCount]
 
 
 class ArticleDetailResponse(ArticleSummaryResponse):

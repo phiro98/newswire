@@ -58,6 +58,9 @@ class Article(Base):
     top_image = Column(Text, nullable=True)
     keywords = Column(Text, nullable=True)  # JSON-encoded array of keywords
     
+    # Classification Category
+    category = Column(String(100), default="Business & Finance", nullable=False, index=True)
+
     # Intelligence Layer Metrics
     sentiment_label = Column(String(20), default="neutral", index=True)  # 'positive', 'neutral', 'negative'
     sentiment_score = Column(Float, default=0.0)  # Compound score (-1.0 to 1.0)

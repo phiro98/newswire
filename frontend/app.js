@@ -1,7 +1,8 @@
-// Newswire Frontend Application Logic
-const API_BASE = ""; // Relative path works both via Nginx reverse proxy (/api/v1) and FastAPI direct
+// Newswire Frontend Application Logic - Category-First & Compliance Monitor
+const API_BASE = ""; // Relative path works seamlessly via Nginx reverse proxy (/api/v1) and FastAPI direct
 
 let currentTab = "articles";
+let currentCategory = ""; // Empty string denotes 'All Topics'
 let sentimentChartInstance = null;
 let complianceChartInstance = null;
 let currentArticlesData = [];
@@ -12,16 +13,18 @@ document.addEventListener("DOMContentLoaded", () => {
     checkBackendConnection();
     loadDashboard();
 
-    // Auto refresh every 20 seconds
+    // Auto refresh telemetry & counts every 20 seconds
     setInterval(() => {
         checkBackendConnection();
         loadKPIs();
+        loadCategoryCounts();
     }, 20000);
 });
 
 // Toast notification helper
 function showToast(message, duration = 3500) {
     const toast = document.getElementById("toast");
+    if (!toast) return;
     toast.textContent = message;
     toast.style.display = "block";
     setTimeout(() => {
@@ -52,9 +55,70 @@ async function checkBackendConnection() {
 
 // Load all dashboard components
 async function loadDashboard() {
-    await loadKPIs();
+    await loadCategoryCounts();
     await loadArticles();
+    await loadKPIs();
     await loadMetricsCharts();
+}
+
+// Category Selector Handler
+function selectCategory(categoryName, pillElement) {
+    currentCategory = categoryName;
+
+    // Update active visual pill
+    document.querySelectorAll(".category-pill").forEach(p => p.classList.remove("active"));
+    if (pillElement) {
+        pillElement.classList.add("active");
+    }
+
+    // Update active label display
+    const activeLabel = document.getElementById("active-category-display");
+    if (activeLabel) {
+        activeLabel.textContent = categoryName || "All Topics";
+    }
+
+    // Reload articles feed for selected category
+    loadArticles();
+}
+
+// Fetch Real-Time Category Article Counts
+async function loadCategoryCounts() {
+    try {
+        const res = await fetch(`${API_BASE}/api/v1/categories`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update All Topics count
+        const countAllEl = document.getElementById("count-all");
+        if (countAllEl) {
+            countAllEl.textContent = (data.total_articles || 0).toLocaleString();
+        }
+
+        // Map category counts
+        const map = {};
+        (data.categories || []).forEach(c => {
+            map[c.name] = c.count;
+        });
+
+        const mapping = {
+            "count-business": "Business & Finance",
+            "count-tech": "Technology & AI",
+            "count-compliance": "Compliance & Sanctions",
+            "count-world": "World & Geopolitics",
+            "count-beauty": "Beauty",
+            "count-entertainment": "Entertainment",
+            "count-sports": "Sports"
+        };
+
+        for (const [elemId, catName] of Object.entries(mapping)) {
+            const el = document.getElementById(elemId);
+            if (el) {
+                el.textContent = (map[catName] || 0).toLocaleString();
+            }
+        }
+    } catch (e) {
+        console.warn("Could not fetch category counts:", e);
+    }
 }
 
 // Fetch Status & Update KPI Counters
@@ -64,14 +128,19 @@ async function loadKPIs() {
         if (!res.ok) return;
         const data = await res.json();
 
-        document.getElementById("kpi-total-articles").textContent = (data.total_articles_count || 0).toLocaleString();
-        document.getElementById("kpi-flagged-alerts").textContent = (data.flagged_articles_count || 0).toLocaleString();
-        document.getElementById("kpi-active-sources").textContent = (data.active_sources_count || 0).toLocaleString();
+        const kpiArticles = document.getElementById("kpi-total-articles");
+        const kpiAlerts = document.getElementById("kpi-flagged-alerts");
+        const kpiSources = document.getElementById("kpi-active-sources");
+        const kpiSentiment = document.getElementById("kpi-sentiment-summary");
+
+        if (kpiArticles) kpiArticles.textContent = (data.total_articles_count || 0).toLocaleString();
+        if (kpiAlerts) kpiAlerts.textContent = (data.flagged_articles_count || 0).toLocaleString();
+        if (kpiSources) kpiSources.textContent = (data.active_sources_count || 0).toLocaleString();
 
         const pos = data.sentiment_ratio?.positive || 0;
         const neu = data.sentiment_ratio?.neutral || 0;
         const neg = data.sentiment_ratio?.negative || 0;
-        document.getElementById("kpi-sentiment-summary").textContent = `${pos} / ${neu} / ${neg}`;
+        if (kpiSentiment) kpiSentiment.textContent = `${pos} / ${neu} / ${neg}`;
 
         updateSentimentChart(pos, neu, neg);
     } catch (e) {
@@ -98,9 +167,11 @@ function initCharts() {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: "right", labels: { color: "#9ca3af", font: { size: 11 } } }
-                },
-                cutout: "65%"
+                    legend: {
+                        position: "right",
+                        labels: { color: "#9ca3af", font: { size: 12, family: "Inter" } }
+                    }
+                }
             }
         });
     }
@@ -112,24 +183,22 @@ function initCharts() {
             data: {
                 labels: [],
                 datasets: [{
-                    label: "Alert Hits",
+                    label: "Violations Triggered",
                     data: [],
-                    backgroundColor: "rgba(239, 68, 68, 0.7)",
-                    borderColor: "#ef4444",
-                    borderWidth: 1,
-                    borderRadius: 4
+                    backgroundColor: "#f87171",
+                    borderRadius: 4,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                indexAxis: "y",
                 scales: {
-                    x: {
-                        ticks: { color: "#9ca3af", stepSize: 1 },
-                        grid: { color: "rgba(255,255,255,0.05)" }
-                    },
                     y: {
+                        beginAtZero: true,
+                        ticks: { color: "#9ca3af", precision: 0 },
+                        grid: { color: "rgba(255,255,255,0.06)" }
+                    },
+                    x: {
                         ticks: { color: "#9ca3af", font: { size: 10 } },
                         grid: { display: false }
                     }
@@ -167,6 +236,18 @@ async function loadMetricsCharts() {
     }
 }
 
+function getCategoryClass(cat) {
+    if (!cat) return "cat-business-finance";
+    const lower = cat.toLowerCase();
+    if (lower.includes("beauty")) return "cat-beauty";
+    if (lower.includes("sport")) return "cat-sports";
+    if (lower.includes("entertain")) return "cat-entertainment";
+    if (lower.includes("tech") || lower.includes("ai")) return "cat-technology-ai";
+    if (lower.includes("world") || lower.includes("geopolitic")) return "cat-world-geopolitics";
+    if (lower.includes("compliance") || lower.includes("sanction")) return "cat-compliance-sanctions";
+    return "cat-business-finance";
+}
+
 // Fetch & Render Articles Feed
 async function loadArticles() {
     const sentiment = document.getElementById("filter-sentiment").value;
@@ -175,6 +256,7 @@ async function loadArticles() {
     const minRisk = document.getElementById("filter-risk").value;
 
     let url = `${API_BASE}/api/v1/articles?limit=50`;
+    if (currentCategory) url += `&category=${encodeURIComponent(currentCategory)}`;
     if (sentiment) url += `&sentiment=${encodeURIComponent(sentiment)}`;
     if (isFlagged !== "") url += `&is_flagged=${isFlagged}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
@@ -188,10 +270,14 @@ async function loadArticles() {
         const articles = await res.json();
         currentArticlesData = articles;
 
-        document.getElementById("items-count").textContent = `${articles.length} records returned`;
+        const countText = currentCategory
+            ? `${articles.length} records in ${currentCategory}`
+            : `${articles.length} total records`;
+        document.getElementById("items-count").textContent = countText;
 
         if (!articles || articles.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No articles match the current filter criteria. Click "Run Ingestion Now" to poll live news feeds.</td></tr>`;
+            const catMsg = currentCategory ? ` for "${currentCategory}"` : "";
+            tbody.innerHTML = `<tr><td colspan="4" class="empty-cell">No articles found${catMsg}. Click "Run Ingestion Now" to poll live feeds.</td></tr>`;
             return;
         }
 
@@ -215,9 +301,13 @@ async function loadArticles() {
                 `<span class="tag-pill">#${k}</span>`
             ).join(" ");
 
+            const catClass = getCategoryClass(a.category);
+            const catBadge = `<span class="category-tag-inline ${catClass}">${escapeHtml(a.category || "Business & Finance")}</span>`;
+
             return `
                 <tr>
                     <td>
+                        <div style="margin-bottom: 4px;">${catBadge}</div>
                         <a href="javascript:void(0)" onclick="inspectArticle(${a.id})" class="article-headline">${escapeHtml(a.title)}</a>
                         <div class="article-snippet">${escapeHtml(a.summary || "Extractive NLP summary pending.")}</div>
                         <div class="keywords-wrap">${keywordsPills}</div>
@@ -263,7 +353,7 @@ async function loadSources() {
                         <a href="${s.url}" target="_blank" style="color: var(--text-secondary);">${escapeHtml(s.url)}</a>
                     </td>
                     <td><span class="badge badge-neu">${s.source_type}</span></td>
-                    <td>${escapeHtml(s.category)}</td>
+                    <td><span class="category-tag-inline ${getCategoryClass(s.category)}">${escapeHtml(s.category)}</span></td>
                     <td>${s.fetch_interval_minutes}m (Last: ${lastFetched})</td>
                     <td>
                         <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="triggerSingleSource(${s.id})">⚡ Ingest</button>
@@ -355,6 +445,7 @@ async function triggerIngestion() {
         });
         const data = await res.json();
         showToast(data.message || "Ingestion cycle completed successfully!");
+        await loadCategoryCounts();
         await loadKPIs();
         await loadArticles();
         await loadMetricsCharts();
@@ -377,6 +468,7 @@ async function triggerSingleSource(sourceId) {
         });
         const data = await res.json();
         showToast(data.message || "Source ingested!");
+        await loadCategoryCounts();
         await loadKPIs();
         await loadArticles();
         await loadSources();
@@ -408,11 +500,16 @@ async function inspectArticle(articleId) {
             `).join("")
             : `<div style="color: #6ee7b7; font-size: 13px;">✓ No regulatory or compliance risk flags triggered for this article.</div>`;
 
+        const catClass = getCategoryClass(article.category);
+        const catBadge = `<span class="category-tag-inline ${catClass}">${escapeHtml(article.category || "Business & Finance")}</span>`;
+
         container.innerHTML = `
             <div style="margin-bottom: 16px;">
+                <div style="margin-bottom: 6px;">${catBadge}</div>
                 <h2 style="font-size: 18px; margin-bottom: 8px;">${escapeHtml(article.title)}</h2>
-                <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 12px;">
+                <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
                     <span><strong>Source:</strong> ${escapeHtml(article.source_name || "Unknown")}</span>
+                    <span><strong>Category:</strong> ${escapeHtml(article.category || "Business & Finance")}</span>
                     <span><strong>Published:</strong> ${article.publish_date ? new Date(article.publish_date).toLocaleString() : "Recent"}</span>
                     <span><strong>Risk Score:</strong> ${article.compliance_risk_score} / 100</span>
                 </div>
@@ -496,6 +593,7 @@ async function handleAddSource(e) {
             closeModal("modal-add-source");
             document.getElementById("form-add-source").reset();
             loadSources();
+            loadCategoryCounts();
             loadKPIs();
         } else {
             const err = await res.json();
@@ -545,6 +643,7 @@ async function deleteSource(sourceId) {
         if (res.ok) {
             showToast("Source removed successfully.");
             loadSources();
+            loadCategoryCounts();
             loadKPIs();
         }
     } catch (e) {
@@ -555,7 +654,10 @@ async function deleteSource(sourceId) {
 function applyPreset(name, url, category) {
     document.getElementById("src-name").value = name;
     document.getElementById("src-url").value = url;
-    document.getElementById("src-category").value = category;
+    const catSelect = document.getElementById("src-category");
+    if (catSelect) {
+        catSelect.value = category;
+    }
 }
 
 function escapeHtml(str) {
