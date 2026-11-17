@@ -1,0 +1,95 @@
+services:
+  # ============================================================================
+  # PostgreSQL 15 Database Service
+  # ============================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: newswire_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: newswire
+      POSTGRES_PASSWORD: newswire_secret
+      POSTGRES_DB: newswire_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newswire -d newswire_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - newswire_net
+
+  # ============================================================================
+  # FastAPI Ingestion & Compliance Intelligence API Service
+  # ============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: newswire-api:latest
+    container_name: newswire_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: "Newswire Compliance & Intelligence Monitor"
+      APP_ENV: production
+      DEBUG: "False"
+      DATABASE_URL: postgresql+psycopg2://newswire:newswire_secret@db:5432/newswire_db
+      AUTO_POLL_ENABLED: "True"
+      POLLING_INTERVAL_MINUTES: 15
+      DEFAULT_ARTICLES_PER_FEED: 25
+      REQUEST_TIMEOUT_SECONDS: 15
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - newswire_net
+
+  # ============================================================================
+  # Production Nginx Frontend Service
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: newswire-frontend:latest
+    container_name: newswire_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - newswire_net
+
+# ============================================================================
+# Networks and Persistent Volumes
+# ============================================================================
+networks:
+  newswire_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

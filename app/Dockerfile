@@ -1,101 +1,57 @@
-# # # Use an official Python runtime as a parent image
-# # FROM python:3.11-slim
+# ==============================================================================
+# Multi-Stage Dockerfile for Newswire (Subdirectory build context)
+# ==============================================================================
+FROM python:3.11-slim AS builder
 
-# # # Set the working directory in the container
-# # WORKDIR /app
-
-# # # Copy the requirements.txt file into the container
-# # COPY requirements.txt .
-
-# # # Install any needed packages specified in requirements.txt
-# # RUN pip install --no-cache-dir -r requirements.txt
-
-# # # Copy the rest of the app's code into the container
-# # COPY . .
-
-# # # Expose the port FastAPI runs on
-# # EXPOSE 8000
-
-# # # Command to run the FastAPI app with Uvicorn
-# # CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
-# #################MULTISTAGE################
-# # Stage 1: Build stage
-# FROM python:3.11-slim AS builder
-
-# # Set the working directory
-# WORKDIR /app
-
-# # Copy the requirements file to install dependencies
-# COPY requirements.txt .
-
-# # Install dependencies in a temporary directory (to keep the final image lean)
-# RUN pip install --no-cache-dir --target=/install -r requirements.txt
-
-
-# # Stage 2: Final stage (production)
-# FROM python:3.11-slim
-
-# # Set the working directory
-# WORKDIR /app
-
-# # Copy only the dependencies from the build stage
-# COPY --from=builder /install /usr/local/lib/python3.11/site-packages
-
-# # Copy the rest of the application code
-# COPY . .
-
-# # Expose the port FastAPI will run on
-# EXPOSE 8000
-
-# # Command to run the FastAPI app with Uvicorn
-# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
-########### multistage 2 #################
-
-# Stage 1: Build Stage with Alpine
-FROM python:3.11-alpine AS builder
-
-# Set environment variables to minimize Docker image size
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Set the working directory
-WORKDIR /app
+WORKDIR /build
 
-# Install dependencies required to build (including build tools)
-RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ libxml2-dev libxslt1-dev libjpeg-dev zlib1g-dev libffi-dev curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies in a temporary directory
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN mkdir -p /opt/nltk_data && \
+    python -m nltk.downloader -d /opt/nltk_data punkt punkt_tab stopwords vader_lexicon
 
+# Runtime
+FROM python:3.11-slim AS runner
 
-# Stage 2: Final Stage (smaller runtime)
-FROM python:3.11-alpine
-
-# Set environment variables to minimize Docker image size
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    NLTK_DATA="/opt/nltk_data" \
+    PYTHONPATH="/app"
 
-# Set the working directory
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxml2 libxslt1.1 libjpeg62-turbo curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appgroup && useradd -r -g appgroup -u 1001 -m -s /sbin/nologin appuser
+
 WORKDIR /app
 
-# Install the minimal dependencies for runtime
-RUN apk add --no-cache libffi libgcc openssl
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /opt/nltk_data /opt/nltk_data
 
-# Copy the installed dependencies from the builder
-COPY --from=builder /install /usr/local
+COPY . /app/app
+COPY ../index.html /app/index.html
 
-# Copy the FastAPI application code
-COPY . .
+RUN mkdir -p /app/data /app/logs && chown -R appuser:appgroup /app /opt/nltk_data
 
-# Expose the port FastAPI will run on
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
 EXPOSE 8000
 
-# Command to run the FastAPI app with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

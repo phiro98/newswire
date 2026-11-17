@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newswire | Regulatory Compliance & News Intelligence Platform</title>
+    <!-- Fonts & Chart.js -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+    <!-- Top Header -->
+    <header>
+        <div class="brand">
+            <div class="brand-icon">NW</div>
+            <div class="brand-titles">
+                <h1>Newswire Intelligence <span class="version-pill">v2.0 PRO</span></h1>
+                <p>Automated News Aggregation, AI Extraction & Compliance Monitoring</p>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div class="connection-indicator" id="connection-status">
+                <span class="pulse-dot"></span>
+                <span id="ping-text">Connecting...</span>
+            </div>
+            <button class="btn btn-secondary" onclick="openAddSourceModal()">+ Add News Source</button>
+            <button class="btn btn-secondary" onclick="openAddRuleModal()">⚙️ Add Rule</button>
+            <button class="btn btn-primary" id="btn-run-ingestion" onclick="triggerIngestion()">
+                <span>⚡</span> Run Ingestion Now
+            </button>
+        </div>
+    </header>
+
+    <!-- KPI Summary Grid -->
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-label">Ingested Articles</div>
+            <div class="kpi-num" id="kpi-total-articles">-</div>
+            <div class="kpi-meta">Deduplicated in PostgreSQL/SQLite</div>
+        </div>
+        <div class="kpi-card alert-card">
+            <div class="kpi-label">Compliance Risk Alerts</div>
+            <div class="kpi-num" id="kpi-flagged-alerts" style="color: #f87171;">-</div>
+            <div class="kpi-meta">AML, Sanctions, Bribery, Fraud</div>
+        </div>
+        <div class="kpi-card source-card">
+            <div class="kpi-label">Active News Feeds</div>
+            <div class="kpi-num" id="kpi-active-sources">-</div>
+            <div class="kpi-meta">Automated polling active</div>
+        </div>
+        <div class="kpi-card sentiment-card">
+            <div class="kpi-label">Sentiment Polarity (Pos / Neu / Neg)</div>
+            <div class="kpi-num" id="kpi-sentiment-summary" style="font-size: 22px;">-</div>
+            <div class="kpi-meta">VADER NLP compound scoring</div>
+        </div>
+    </div>
+
+    <!-- Real-Time Analytics Charts -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>Sentiment Polarity Distribution</h3>
+            <div class="chart-wrapper">
+                <canvas id="sentimentChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3>Top Regulatory & Compliance Violations</h3>
+            <div class="chart-wrapper">
+                <canvas id="complianceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Navigation Toolbar -->
+    <div class="filter-bar">
+        <div class="view-tabs">
+            <button class="tab-btn active" onclick="switchTab('articles', this)">Live Articles Feed</button>
+            <button class="tab-btn" onclick="switchTab('sources', this)">Configured Sources</button>
+            <button class="tab-btn" onclick="switchTab('rules', this)">Compliance Rules</button>
+            <button class="tab-btn" onclick="switchTab('logs', this)">Audit Trail</button>
+        </div>
+
+        <div class="filters-row">
+            <select id="filter-sentiment" onchange="loadArticles()">
+                <option value="">All Sentiments</option>
+                <option value="positive">Positive Only</option>
+                <option value="neutral">Neutral Only</option>
+                <option value="negative">Negative Only</option>
+            </select>
+
+            <select id="filter-flagged" onchange="loadArticles()">
+                <option value="">All Risk Statuses</option>
+                <option value="true">⚠️ Flagged Risk Only</option>
+                <option value="false">✓ Clean Articles Only</option>
+            </select>
+
+            <select id="filter-risk" onchange="loadArticles()">
+                <option value="">Min Risk Score: 0+</option>
+                <option value="20">Risk Score: 20+</option>
+                <option value="50">Risk Score: 50+ (High)</option>
+                <option value="70">Risk Score: 70+ (Critical)</option>
+            </select>
+
+            <input type="text" id="filter-search" placeholder="Search title, content, entity..." onkeydown="if(event.key==='Enter') loadArticles()">
+            <button class="btn btn-secondary" onclick="loadArticles()">Filter</button>
+        </div>
+    </div>
+
+    <!-- Main Panel Container -->
+    <div class="panel">
+        <div class="panel-header">
+            <h2 id="view-title">Real-Time Ingestion & Compliance Intelligence</h2>
+            <span style="font-size: 12px; color: var(--text-muted);" id="items-count">Loading records...</span>
+        </div>
+
+        <!-- 1. Articles View -->
+        <div id="view-articles">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 45%;">Article Headline & Extractive Summary</th>
+                        <th style="width: 15%;">Publisher & Date</th>
+                        <th style="width: 15%;">Sentiment Polarity</th>
+                        <th style="width: 25%;">Compliance Risk Assessment</th>
+                    </tr>
+                </thead>
+                <tbody id="articles-tbody">
+                    <tr><td colspan="4" class="empty-cell">Initializing pipeline feed...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 2. Sources View -->
+        <div id="view-sources" style="display: none;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Source Name</th>
+                        <th>Endpoint / Feed URL</th>
+                        <th>Type</th>
+                        <th>Category</th>
+                        <th>Polling Schedule</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="sources-tbody">
+                    <tr><td colspan="6" class="empty-cell">Loading registered sources...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 3. Compliance Rules View -->
+        <div id="view-rules" style="display: none; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <p style="font-size: 13px; color: var(--text-secondary);">
+                    Active regulatory taxonomy categories and keyword dictionaries compiled with boundary regex scanning.
+                </p>
+                <button class="btn btn-primary" onclick="openAddRuleModal()">+ Add Category</button>
+            </div>
+            <div id="rules-container"></div>
+        </div>
+
+        <!-- 4. Audit Logs View -->
+        <div id="view-logs" style="display: none;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Source Target</th>
+                        <th>Execution Status</th>
+                        <th>Batch Extraction</th>
+                        <th>Deduplication Metric</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-tbody">
+                    <tr><td colspan="5" class="empty-cell">Loading audit logs...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add News Source -->
+<div class="modal-overlay" id="modal-add-source">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Add Subscribed News Feed</h3>
+            <button class="close-btn" onclick="closeModal('modal-add-source')">✕</button>
+        </div>
+        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); padding: 10px; border-radius: 6px; margin-bottom: 16px; font-size: 12px; color: #93c5fd;">
+            <strong>Quick Presets:</strong>
+            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 6px;" onclick="applyPreset('Reuters Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 'Business & Markets')">BBC Business</button>
+            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="applyPreset('SEC Press Releases', 'https://www.sec.gov/news/pressreleases.rss', 'Regulatory & Enforcement')">SEC Press</button>
+            <button type="button" class="btn btn-secondary" style="padding: 2px 6px; font-size: 10px; margin-left: 4px;" onclick="applyPreset('Google News - Sanctions', 'https://news.google.com/rss/search?q=sanctions+OR+anti-money+laundering+OR+bribery&hl=en-US&gl=US&ceid=US:en', 'Compliance')">GNews Compliance</button>
+        </div>
+        <form id="form-add-source" onsubmit="handleAddSource(event)">
+            <div class="form-field">
+                <label>Feed Display Name</label>
+                <input type="text" id="src-name" required placeholder="e.g. Financial Times Compliance">
+            </div>
+            <div class="form-field">
+                <label>Feed or Website URL (Supports Auto-Discovery)</label>
+                <input type="text" id="src-url" required placeholder="https://domain.com/feed or https://domain.com">
+            </div>
+            <div class="form-field">
+                <label>Source Type</label>
+                <select id="src-type">
+                    <option value="rss">Standard RSS / Atom Feed</option>
+                    <option value="gnews">Google News Topic Query</option>
+                    <option value="newsapi">NewsAPI.org Endpoint</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Taxonomy Category</label>
+                <input type="text" id="src-category" value="Regulatory & Legal" required>
+            </div>
+            <div class="form-field">
+                <label>Polling Interval (Minutes)</label>
+                <input type="number" id="src-interval" value="15" min="1" max="1440">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-source')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save & Register</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Add Compliance Rule -->
+<div class="modal-overlay" id="modal-add-rule">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Configure Custom Compliance Taxonomy</h3>
+            <button class="close-btn" onclick="closeModal('modal-add-rule')">✕</button>
+        </div>
+        <form id="form-add-rule" onsubmit="handleAddRule(event)">
+            <div class="form-field">
+                <label>Category Name</label>
+                <input type="text" id="rule-category" required placeholder="e.g. Antitrust & Market Collusion">
+            </div>
+            <div class="form-field">
+                <label>Target Keywords (Comma Separated)</label>
+                <textarea id="rule-keywords" required placeholder="price fixing, bid rigging, illegal monopoly, market allocation, cartel, predatory pricing"></textarea>
+            </div>
+            <div class="form-field">
+                <label>Severity Level</label>
+                <select id="rule-severity">
+                    <option value="CRITICAL">CRITICAL (35 pts weight)</option>
+                    <option value="HIGH" selected>HIGH (20 pts weight)</option>
+                    <option value="MEDIUM">MEDIUM (10 pts weight)</option>
+                    <option value="LOW">LOW (5 pts weight)</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-rule')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Taxonomy Rule</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Article Detail & Risk Inspector -->
+<div class="modal-overlay" id="modal-article-detail">
+    <div class="modal-card modal-large">
+        <div class="modal-header">
+            <h3>Article Intelligence & Regulatory Risk Inspector</h3>
+            <button class="close-btn" onclick="closeModal('modal-article-detail')">✕</button>
+        </div>
+        <div id="article-modal-body"></div>
+    </div>
+</div>
+
+<!-- Toast Notice -->
+<div class="toast-notice" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
